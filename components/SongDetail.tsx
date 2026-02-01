@@ -14,6 +14,10 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
   const [loading, setLoading] = useState({ insight: true, chords: true });
   const [isAutoScroll, setIsAutoScroll] = useState(false);
 
+  // Debug Info
+  const DEBUG_VERSION = "DEPLOY-FIX-V2";
+  const hasManual = !!(song.manualChords && song.manualChords.trim().length > 0);
+
   // Extract YouTube ID
   let youtubeId = null;
   if (song.youtubeUrl) {
@@ -36,6 +40,9 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
   }, [isAutoScroll]);
 
   useEffect(() => {
+    console.log(`[${DEBUG_VERSION}] Loading Song:`, song.title);
+    console.log("Manual Chords Present:", hasManual, "Length:", song.manualChords?.length);
+
     // Reset state
     setInsight(null);
     setChordsText(null);
@@ -51,9 +58,9 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
     // 2. Get Chords/Lyrics logic
 
     // PRIORITY 0: Explicit Manual Column (Column F "Tekst+chords")
-    if (song.manualChords && song.manualChords.trim().length > 0) {
+    if (hasManual) {
       console.log("Using explicit manual chords from column F");
-      setChordsText(song.manualChords);
+      setChordsText(song.manualChords!);
       setLoading(prev => ({ ...prev, chords: false }));
       return;
     }
@@ -99,7 +106,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
             <h3 className="text-xl font-bold bg-white inline-block px-2 py-1 transform -rotate-2 border-2 border-black">{song.band}</h3>
 
             {/* Manual Mode Indicator */}
-            {(song.manualChords || (song.content && !isUrl(song.content))) && (
+            {(hasManual || (song.content && !isUrl(song.content))) && (
               <div className="mt-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
                 • Tryb Manualny (Tekst z Arkusza)
               </div>
@@ -169,6 +176,15 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
             )}
           </div>
 
+          {/* DEBUG FOOTER - Helps diagnose deployment status */}
+          <div className="text-center text-[10px] text-gray-400 mt-8 pb-4 font-mono">
+            System Version: <span className="font-bold text-black">{DEBUG_VERSION}</span><br />
+            Manual Data Found: <span className={hasManual ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
+              {hasManual ? "YES" : "NO"}
+            </span>
+            {song.manualChords && ` (${song.manualChords.length} chars)`}
+          </div>
+
         </div>
       </div>
     </div>
@@ -195,8 +211,6 @@ const ChordRenderer: React.FC<{ text: string }> = ({ text }) => {
         // [Header] detection
         const headerMatch = line.trim().match(/^\[(.*?)\]$/);
         if (headerMatch && !line.includes(' ')) {
-          // Probably a section header like [Verse] or [Chorus]
-          // Heuristic: if it's longer than a typical chord (like [Add9]) and contains words
           if (line.length > 5 && !/^[A-G]/.test(headerMatch[1])) {
             return (
               <div key={lineIdx} className="font-black text-lg mt-6 mb-2 border-l-4 border-[#FF0080] pl-2 text-[#FF0080]">
@@ -210,7 +224,6 @@ const ChordRenderer: React.FC<{ text: string }> = ({ text }) => {
         const isTab = /\|-+\|/.test(line) || /e\|/.test(line) || /B\|/.test(line) || /-+\d+-+/.test(line);
 
         if (isTab) {
-          // Render tab lines in strict monospace
           return (
             <div key={lineIdx} className="font-mono whitespace-pre text-gray-800 leading-none tracking-tighter">
               {line}
