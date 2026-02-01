@@ -1,0 +1,199 @@
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { Song } from './types';
+import { fetchSongs } from './services/csvService';
+import SongList from './components/SongList';
+import SongDetail from './components/SongDetail';
+import { NanaLogo } from './components/NanaLogo';
+
+const ROCK_QUOTES = [
+  { text: "Shine on you crazy diamond. Reach for the secret too soon, you cried for the moon.", artist: "Pink Floyd" },
+  { text: "We can be heroes, just for one day. We can be us, just for one day.", artist: "David Bowie" },
+  { text: "The show must go on. Inside my heart is breaking, my makeup may be flaking, but my smile still stays on.", artist: "Queen" },
+  { text: "I'd rather be hated for who I am, than loved for who I am not.", artist: "Kurt Cobain" },
+  { text: "Everything will be okay in the end. If it's not okay, it's not the end.", artist: "John Lennon" },
+  { text: "Freedom's just another word for nothing left to lose. Nothing, that's all that Bobby left me.", artist: "Janis Joplin" },
+  { text: "And in the end, the love you take is equal to the love you make.", artist: "The Beatles" },
+  { text: "The future is unwritten. There is no power in the world like the power of the people.", artist: "Joe Strummer" },
+  { text: "Don't criticize what you can't understand, and your old road is rapidly agin'.", artist: "Bob Dylan" },
+  { text: "Knowledge speaks, but wisdom listens.", artist: "Jimi Hendrix" },
+  { text: "It's better to burn out than to fade away.", artist: "Neil Young" },
+  { text: "All things must pass, none of life's strings can last. So I must be on my way and face another day.", artist: "George Harrison" },
+  { text: "Expose yourself to your deepest fear; after that, the fear has no power, and the fear of freedom shrinks and vanishes.", artist: "Jim Morrison" },
+  { text: "To me, punk rock is the freedom to create, freedom to be successful, freedom to be who you are.", artist: "Patti Smith" },
+  { text: "You can't always get what you want, but if you try sometimes, you might find you get what you need.", artist: "The Rolling Stones" }
+];
+
+// Highly saturated colors for 90% intensity feel
+const INTENSE_COLORS = ["#FF0000", "#FF00FF", "#00FF00", "#00FFFF", "#FFFF00", "#7F00FF", "#FF4500", "#1E90FF"];
+
+const HippieFlower = ({ color, className = "", style, centerColor = "white" }: { color: string, className?: string, style?: React.CSSProperties, centerColor?: string }) => (
+  <svg className={`flower-sway ${className}`} style={style} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="25" r="20" fill={color} stroke="black" strokeWidth="6" />
+    <circle cx="75" cy="42" r="20" fill={color} stroke="black" strokeWidth="6" />
+    <circle cx="65" cy="72" r="20" fill={color} stroke="black" strokeWidth="6" />
+    <circle cx="35" cy="72" r="20" fill={color} stroke="black" strokeWidth="6" />
+    <circle cx="25" cy="42" r="20" fill={color} stroke="black" strokeWidth="6" />
+    <circle cx="50" cy="50" r="15" fill={centerColor} stroke="black" strokeWidth="6" />
+    <circle cx="50" cy="50" r="6" fill="black" />
+  </svg>
+);
+
+const PsychQuote = () => {
+  // Start with a random quote index
+  const [quoteIdx, setQuoteIdx] = useState(() => Math.floor(Math.random() * ROCK_QUOTES.length));
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQuoteIdx((prev) => (prev + 1) % ROCK_QUOTES.length);
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const quote = ROCK_QUOTES[quoteIdx];
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-white">
+      <div key={quoteIdx} className="relative z-10 max-w-3xl px-8 text-center animate-fade-in">
+        <div className="bg-white border-[6px] md:border-[10px] border-black p-8 md:p-20 rounded-[40px] md:rounded-[80px] shadow-[15px_15px_0px_#000] md:shadow-[25px_25px_0px_#000] transform -rotate-1">
+           <h3 className="text-2xl md:text-4xl lg:text-5xl handwriting-font tracking-tight leading-relaxed text-black mb-10 drop-shadow-[2px_2px_0px_rgba(255,20,147,0.6)]">
+             "{quote.text}"
+           </h3>
+           <div className="h-2 w-24 md:h-3 md:w-32 bg-black mx-auto mb-6 rounded-full opacity-10"></div>
+           <p className="text-lg md:text-xl font-black uppercase tracking-[0.4em] md:tracking-[0.6em] text-black/30 italic">
+             {quote.artist}
+           </p>
+        </div>
+      </div>
+      <div className="absolute bottom-12 left-0 right-0 text-center">
+         <p className="text-[10px] font-black uppercase tracking-[0.5em] md:tracking-[1em] text-black/10">Wybierz utwór z biblioteki</p>
+      </div>
+    </div>
+  );
+};
+
+const SplashBackground = () => {
+  const flowers = useMemo(() => {
+    // 15 flowers spread on a grid-like layout for even distribution
+    // 3 rows x 5 columns
+    const items = [];
+    const rows = 3;
+    const cols = 5;
+    const sizes = [24, 32, 48];
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const id = r * cols + c;
+        const baseTop = (r / rows) * 100 + (100 / rows / 2);
+        const baseLeft = (c / cols) * 100 + (100 / cols / 2);
+        const jitterTop = (Math.random() - 0.5) * 20; 
+        const jitterLeft = (Math.random() - 0.5) * 15;
+
+        items.push({
+          id,
+          size: sizes[id % sizes.length],
+          color: INTENSE_COLORS[Math.floor(Math.random() * INTENSE_COLORS.length)],
+          top: `${baseTop + jitterTop}%`,
+          left: `${baseLeft + jitterLeft}%`,
+          delay: `${Math.random() * 10}s`,
+          duration: `${4 + Math.random() * 8}s`
+        });
+      }
+    }
+    return items;
+  }, []);
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {flowers.map(f => (
+        <div 
+          key={f.id} 
+          className="absolute transform -translate-x-1/2 -translate-y-1/2" 
+          style={{ 
+            top: f.top, 
+            left: f.left, 
+            width: `${f.size}px`, 
+            height: `${f.size}px`,
+          }}
+        >
+          <HippieFlower 
+            color={f.color} 
+            className="w-full h-full opacity-90" 
+            style={{ animationDelay: f.delay, animationDuration: f.duration }} 
+          />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
+  const [searchQuery] = useState(''); // Removed UI for search, keeping state as empty string
+
+  useEffect(() => {
+    fetchSongs().then(setSongs).finally(() => setLoading(false));
+  }, []);
+
+  const selectedSong = useMemo(() => songs.find(s => s.id === selectedSongId), [songs, selectedSongId]);
+
+  if (showSplash) {
+    return (
+      <div className="fixed inset-0 bg-white z-[100] flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden">
+        <SplashBackground />
+        
+        <div className="w-full max-w-screen-md text-center space-y-12 md:space-y-20 relative z-10 animate-fade-in px-4">
+          <div className="inline-block p-8 sm:p-12 md:p-24 border-[8px] md:border-[14px] border-black bg-white shadow-[15px_15px_0px_#000] md:shadow-[40px_40px_0px_#000] rounded-[40px] md:rounded-[100px] transform -rotate-3 hover:rotate-0 transition-transform duration-500 cursor-default max-w-full">
+             <NanaLogo size="lg" />
+          </div>
+          
+          <div className="flex flex-col items-center gap-6 md:gap-10">
+            <p className="text-sm md:text-xl lg:text-2xl font-black uppercase tracking-[0.4em] md:tracking-[1em] text-black/20 animate-pulse">Peace, Love & Chords</p>
+            <button 
+              disabled={loading}
+              onClick={() => setShowSplash(false)}
+              className="pop-button w-full max-w-[280px] md:max-w-sm bg-black text-white py-6 md:py-10 rounded-full font-black text-2xl md:text-4xl uppercase tracking-[0.2em] hover:bg-[#FF1493] hover:text-white transition-all shadow-[10px_10px_0px_#FFD700] md:shadow-[20px_20px_0px_#FFD700] active:translate-y-2 active:shadow-none"
+            >
+              {loading ? "Strojenie..." : "Let's rock"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-white text-black overflow-hidden border-[8px] md:border-[16px] border-black animate-fade-in">
+      <aside className={`${selectedSongId ? 'hidden lg:flex' : 'flex'} flex-col w-full lg:w-[540px] border-r-[8px] md:border-r-[12px] border-black bg-white relative z-20`}>
+        {/* Sidebar Header - reduced padding and removed search */}
+        <div className="p-4 md:p-8 border-b-[8px] md:border-b-[12px] border-black bg-[#FDF2F0]/50 sticky top-0 z-10">
+          <button 
+            onClick={() => setShowSplash(true)}
+            className="text-left group transition-transform hover:scale-105 active:scale-95 duration-200"
+            title="Powrót do ekranu głównego"
+          >
+            <NanaLogo size="md" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 md:py-12 custom-scrollbar">
+          <SongList songs={songs} searchQuery={searchQuery} onSelectSong={setSelectedSongId} selectedSongId={selectedSongId} />
+        </div>
+      </aside>
+
+      <main className={`${selectedSongId ? 'flex' : 'hidden lg:flex'} flex-1 flex-col relative bg-[#FAFAFA]`}>
+        {selectedSong ? (
+          <div className="h-full animate-fade-in">
+            <SongDetail song={selectedSong} onBack={() => setSelectedSongId(null)} />
+          </div>
+        ) : (
+          <PsychQuote />
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default App;
