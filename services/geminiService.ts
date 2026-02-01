@@ -33,7 +33,37 @@ const isUltimateGuitarUrl = (url: string): boolean => {
   return url.includes("ultimate-guitar.com") || url.includes("tabs.ultimate-guitar.com");
 };
 
-// Helper to fetch from Netlify Function
+// Helper to fetch from Songsterr (New Primary Method)
+const fetchFromSongsterr = async (band: string, title: string): Promise<string | null> => {
+  try {
+    const response = await fetch("/.netlify/functions/fetch-songsterr", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ artist: band, title: title }),
+    });
+
+    if (!response.ok) {
+      // Just log warning, don't spam errors as this is expected if song not found
+      console.warn("Songsterr fetch failed:", response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.success && data.content) {
+      console.log(`Fetched from Songsterr: ${data.source}`);
+      return data.content;
+    }
+
+    return null;
+  } catch (error) {
+    console.warn("Error calling Songsterr function:", error);
+    return null;
+  }
+};
+
+// Helper to fetch from Netlify Function (UG Scraper)
 const fetchFromNetlifyFunction = async (url: string): Promise<string | null> => {
   try {
     const response = await fetch("/.netlify/functions/fetch-tabs", {
@@ -45,7 +75,7 @@ const fetchFromNetlifyFunction = async (url: string): Promise<string | null> => 
     });
 
     if (!response.ok) {
-      console.error("Netlify function error:", response.status, response.statusText);
+      console.error("UG Netlify function error:", response.status);
       return null;
     }
 
@@ -56,26 +86,34 @@ const fetchFromNetlifyFunction = async (url: string): Promise<string | null> => 
 
     return null;
   } catch (error) {
-    console.error("Error calling Netlify function:", error);
+    console.error("Error calling UG Netlify function:", error);
     return null;
   }
 };
 
 export const getChordsAndLyrics = async (band: string, title: string, sourceUrl: string) => {
-  // First, try to fetch from Ultimate Guitar if the URL is valid
+  console.log(`Getting chords for: ${band} - ${title}`);
+
+  // STRATEGY 1: Songsterr (Primary)
+  // We try to find the song on Songsterr automatically
+  const songsterrContent = await fetchFromSongsterr(band, title);
+  if (songsterrContent) {
+    return songsterrContent;
+  }
+
+  // STRATEGY 2: Ultimate Guitar Scraper (Secondary)
+  // Only if we have a valid UG URL
   if (isUltimateGuitarUrl(sourceUrl)) {
     console.log("Attempting to fetch from Ultimate Guitar:", sourceUrl);
     const scrapedContent = await fetchFromNetlifyFunction(sourceUrl);
 
     if (scrapedContent) {
-      console.log("Successfully fetched from Ultimate Guitar");
       return scrapedContent;
     }
-
-    console.log("Failed to scrape Ultimate Guitar, falling back to AI generation");
   }
 
-  // Fallback to AI generation
+  // STRATEGY 3: AI Generation (Fallback)
+  console.log("Falling back to AI generation");
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
