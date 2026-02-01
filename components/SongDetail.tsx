@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { Song } from '../types';
+import React, { useEffect, useState, useRef } from 'react';
+import { Song, AppState } from '../types';
 import { getSongInsight, getChordsAndLyrics } from '../services/geminiService';
 
 interface SongDetailProps {
@@ -8,223 +8,234 @@ interface SongDetailProps {
   onBack: () => void;
 }
 
-const HippieFlower = ({ color, centerColor = "white", className = "w-12 h-12" }: { color: string, centerColor?: string, className?: string }) => (
-  <svg className={`flower-sway ${className}`} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="25" r="20" fill={color} stroke="black" strokeWidth="6" />
-    <circle cx="75" cy="42" r="20" fill={color} stroke="black" strokeWidth="6" />
-    <circle cx="65" cy="72" r="20" fill={color} stroke="black" strokeWidth="6" />
-    <circle cx="35" cy="72" r="20" fill={color} stroke="black" strokeWidth="6" />
-    <circle cx="25" cy="42" r="20" fill={color} stroke="black" strokeWidth="6" />
-    <circle cx="50" cy="50" r="15" fill={centerColor} stroke="black" strokeWidth="6" />
-    <circle cx="50" cy="50" r="6" fill="black" />
-  </svg>
-);
-
-const ChordRenderer: React.FC<{ text: string }> = ({ text }) => {
-  const lines = text.split('\n');
-  
-  return (
-    <div className="chords-font space-y-3 select-none">
-      {lines.map((line, lineIdx) => {
-        const hasChords = line.includes('[') && line.includes(']');
-        
-        if (line.trim().startsWith('[') && line.trim().endsWith(']') && !line.trim().slice(1,-1).includes(' ')) {
-           return (
-             <div key={lineIdx} className="font-black text-[9px] md:text-[11px] uppercase tracking-[0.4em] text-black/30 mt-6 mb-1">
-               {line}
-             </div>
-           );
-        }
-
-        if (!hasChords) {
-          if (line.trim() === '') return <div key={lineIdx} className="h-3"></div>;
-          return <div key={lineIdx} className="text-black/80 text-[10px] md:text-[12px] whitespace-pre leading-tight">{line}</div>;
-        }
-
-        let cleanText = "";
-        const chordsInLine: { pos: number, name: string }[] = [];
-        const regex = /\[([^\]]+)\]/g;
-        let match;
-        let lastIndex = 0;
-
-        while ((match = regex.exec(line)) !== null) {
-          cleanText += line.substring(lastIndex, match.index);
-          chordsInLine.push({ pos: cleanText.length, name: match[1] });
-          lastIndex = regex.lastIndex;
-        }
-        cleanText += line.substring(lastIndex);
-
-        let chordsLineStr = "";
-        chordsInLine.forEach(c => {
-          while (chordsLineStr.length < c.pos) chordsLineStr += " ";
-          chordsLineStr += c.name;
-        });
-
-        return (
-          <div key={lineIdx} className="flex flex-col leading-none">
-            <div className="text-black font-black text-[10px] md:text-[12px] whitespace-pre min-h-[1rem]">
-              {chordsLineStr}
-            </div>
-            <div className="text-black/70 text-[10px] md:text-[12px] whitespace-pre pb-1">
-              {cleanText}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-
-const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
-  const [insightLines, setInsightLines] = useState<string[]>([]);
+export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
+  const [insight, setInsight] = useState<string | null>(null);
   const [chordsText, setChordsText] = useState<string | null>(null);
-  const [loading, setLoading] = useState({ insight: false, chords: false });
-  const [showIframe, setShowIframe] = useState(true);
+  const [loading, setLoading] = useState({ insight: true, chords: true });
+  const [isAutoScroll, setIsAutoScroll] = useState(false);
 
-  const isUrl = (str: string) => {
-    if (!str) return false;
-    try { 
-      const trimmed = str.trim();
-      return (trimmed.startsWith('http://') || trimmed.startsWith('https://'));
-    } catch { return false; }
-  };
+  // Extract YouTube ID
+  let youtubeId = null;
+  if (song.youtubeUrl) {
+    const match = song.youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/.*v=)([^&]+)/);
+    youtubeId = match ? match[1] : null;
+  }
 
-  const youtubeLink = song.youtubeUrl?.trim();
-  const tabsLink = isUrl(song.content) ? song.content.trim() : null;
-  const sourceLink = isUrl(song.embedUrl) ? song.embedUrl.trim() : null;
+  // Auto-scroll logic
+  useEffect(() => {
+    let scrollInterval: NodeJS.Timeout;
+    if (isAutoScroll) {
+      scrollInterval = setInterval(() => {
+        const scroller = document.querySelector('.custom-scrollbar');
+        if (scroller) {
+          scroller.scrollTop += 1;
+        }
+      }, 50);
+    }
+    return () => clearInterval(scrollInterval);
+  }, [isAutoScroll]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading({ insight: true, chords: true });
-      const insightPromise = getSongInsight(song.band, song.title, song.content);
-      const chordsPromise = getChordsAndLyrics(song.band, song.title, song.embedUrl || song.youtubeUrl);
-      const [insightResult, chordsResult] = await Promise.all([insightPromise, chordsPromise]);
-      setInsightLines(insightResult ? insightResult.split('\n').filter(l => l.trim().length > 0) : []);
-      setChordsText(chordsResult);
-      setLoading({ insight: false, chords: false });
-    };
-    fetchData();
-  }, [song.id]);
+    // Reset state
+    setInsight(null);
+    setChordsText(null);
+    setLoading({ insight: true, chords: true });
+
+    // 1. Get Insights
+    getSongInsight(song.band, song.title, song.content)
+      .then(text => {
+        setInsight(text);
+        setLoading(prev => ({ ...prev, insight: false }));
+      });
+
+    // 2. Get Chords/Lyrics logic
+    const isContentUrl = isUrl(song.content);
+
+    // MANUAL ENTRY MODE: If content is provided and NOT a URL, treat as raw tabs
+    if (song.content && !isContentUrl) {
+      console.log("Manual content detected (not a URL), using direct text.");
+      setChordsText(song.content);
+      setLoading(prev => ({ ...prev, chords: false }));
+      return;
+    }
+
+    // AUTOMATED FETCH MODE: Try Songsterr -> UG -> AI
+    const sourceUrl = isContentUrl ? song.content.trim() : '';
+
+    getChordsAndLyrics(song.band, song.title, sourceUrl)
+      .then(result => { // result can be string or null
+        if (result) {
+          setChordsText(result);
+        } else {
+          setChordsText("Nie udało się pobrać tekstu. Spróbuj odświeżyć.");
+        }
+        setLoading(prev => ({ ...prev, chords: false }));
+      });
+
+  }, [song]);
+
+  const toggleAutoScroll = () => {
+    setIsAutoScroll(!isAutoScroll);
+  };
 
   return (
-    <div className="flex flex-col h-full bg-white relative overflow-hidden">
-      <button 
-        onClick={onBack} 
-        className="fixed top-8 left-8 z-50 pop-button h-12 w-12 md:h-14 md:w-14 rounded-full flex items-center justify-center bg-white hover:bg-black hover:text-white transition-all shadow-[6px_6px_0px_#000]"
-      >
-        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={5} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
+    <div className="h-full flex flex-col bg-white">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 pb-32">
+        <div className="max-w-3xl mx-auto space-y-6">
 
-      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-12 space-y-16 custom-scrollbar scroll-smooth">
-        <div className="text-center space-y-2 mt-8 md:mt-0 animate-fade-in">
-          <h1 className="text-2xl md:text-4xl font-black tracking-tighter text-black uppercase leading-tight px-4 drop-shadow-[2px_2px_0px_#FF1493]">
-            {song.title}
-          </h1>
-          <p className="text-lg md:text-xl font-bold text-black/40 tracking-[0.4em] uppercase italic">
-            {song.band}
-          </p>
-        </div>
+          {/* Header Card */}
+          <div className="pop-card p-6 bg-[#FFDEE9] bg-gradient-to-r from-[#FFDEE9] to-[#B5FFFC]">
+            <h2 className="text-3xl font-black mb-1 uppercase tracking-tighter">{song.title}</h2>
+            <h3 className="text-xl font-bold bg-white inline-block px-2 py-1 transform -rotate-2 border-2 border-black">{song.band}</h3>
 
-        {/* YouTube Embed */}
-        <div className="w-full max-w-4xl mx-auto animate-fade-in">
-          <div className="aspect-video rounded-[40px] md:rounded-[60px] border-[6px] md:border-[10px] border-black bg-[#111] shadow-[15px_15px_0px_#000] overflow-hidden relative">
-             {youtubeLink && showIframe ? (
-               <iframe
-                 className="absolute inset-0 w-full h-full"
-                 src={`https://www.youtube.com/embed/${youtubeLink.includes('watch?v=') ? youtubeLink.split('watch?v=')[1]?.split('&')[0] : youtubeLink.split('/').pop()}`}
-                 title={`${song.band} - ${song.title}`}
-                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                 referrerPolicy="strict-origin-when-cross-origin"
-                 allowFullScreen
-                 style={{ border: 'none' }}
-                 onError={() => setShowIframe(false)}
-               />
-             ) : youtubeLink ? (
-               <div className="absolute inset-0 flex items-center justify-center">
-                 <div className="absolute inset-0 opacity-20 pointer-events-none flex flex-wrap gap-12 p-8 justify-center items-center overflow-hidden">
-                   {[...Array(6)].map((_, i) => (
-                     <HippieFlower key={i} color={["#FF0000", "#FFD700", "#FF69B4"][i % 3]} className="w-32 h-32" />
-                   ))}
-                 </div>
-                 <a 
-                   href={youtubeLink} 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
-                   className="pop-button relative z-10 bg-[#FF0000] text-white px-8 md:px-12 py-5 md:py-8 rounded-full font-black text-xl md:text-3xl uppercase tracking-widest flex items-center gap-4 hover:scale-105 active:scale-95 transition-all shadow-[10px_10px_0px_#000]"
-                 >
-                   <svg className="w-8 h-8 md:w-12 md:h-12" fill="currentColor" viewBox="0 0 24 24">
-                     <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/>
-                   </svg>
-                   View on YouTube
-                 </a>
-               </div>
-             ) : (
-               <div className="absolute inset-0 flex items-center justify-center">
-                 <div className="text-white font-black uppercase tracking-widest text-center px-4">
-                   YouTube Link Not Available
-                 </div>
-               </div>
-             )}
+            {/* Manual Mode Indicator */}
+            {song.content && !isUrl(song.content) && (
+              <div className="mt-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+                • Tryb Manualny (Tekst z Arkusza)
+              </div>
+            )}
           </div>
-        </div>
 
-        <div className="max-w-4xl mx-auto bg-white border-8 border-black rounded-[30px] shadow-[15px_15px_0px_#000] overflow-hidden animate-fade-in">
-          <div className="bg-white border-b-4 border-black p-5">
-            <h2 className="text-xs md:text-sm font-black uppercase tracking-[0.4em] text-black">Tekst & chords</h2>
+          {/* YouTube Embed */}
+          {youtubeId && (
+            <div className="pop-card p-2 bg-black">
+              <div className="aspect-video w-full bg-gray-900">
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube.com/embed/${youtubeId}`}
+                  title="YouTube video player"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                ></iframe>
+              </div>
+            </div>
+          )}
+
+          {/* AI Insight */}
+          <div className="pop-card p-5 bg-[#FFE259] bg-gradient-to-r from-[#FFE259] to-[#FFA751]">
+            <h4 className="font-black text-lg mb-3 flex items-center gap-2">
+              <span className="text-2xl">💡</span>
+              NANA RADZI:
+            </h4>
+            {loading.insight ? (
+              <div className="animate-pulse flex space-y-2 flex-col">
+                <div className="h-4 bg-black/10 rounded w-3/4"></div>
+                <div className="h-4 bg-black/10 rounded w-1/2"></div>
+              </div>
+            ) : (
+              <div className="font-medium whitespace-pre-line leading-relaxed">
+                {insight}
+              </div>
+            )}
           </div>
-          <div className="p-6 md:p-12 bg-white overflow-x-auto min-h-[300px]">
+
+          {/* Chords & Lyrics */}
+          <div className="pop-card p-6 bg-white relative min-h-[400px]">
+            {/* Decor */}
+            <div className="absolute -top-3 -right-3 w-12 h-12 bg-[#FF0080] rounded-full border-4 border-black z-10 flex items-center justify-center text-white font-bold text-lg transform rotate-12">
+              ♫
+            </div>
+
+            <div className="flex justify-between items-center mb-6 border-b-4 border-black pb-2">
+              <h4 className="font-black text-2xl uppercase">Tekst & Chwyty</h4>
+              <button
+                onClick={toggleAutoScroll}
+                className={`pop-button px-4 py-1 text-sm font-bold flex items-center gap-2 ${isAutoScroll ? 'bg-green-400' : 'bg-gray-200'}`}
+              >
+                {isAutoScroll ? '⏹ STOP' : '▶ AUTO-SCROLL'}
+              </button>
+            </div>
+
             {loading.chords ? (
               <div className="space-y-4 animate-pulse">
                 {[1, 2, 3, 4, 5, 6].map(i => (
-                  <div key={i} className="h-3 bg-black/5 rounded-full w-full"></div>
+                  <div key={i} className="h-4 bg-gray-200 rounded w-full"></div>
                 ))}
               </div>
-            ) : chordsText ? (
-              <ChordRenderer text={chordsText} />
             ) : (
-              <div className="text-center py-20 text-black/20 font-black uppercase tracking-widest text-[10px]">
-                Nie znaleziono tekstu utworu
-              </div>
+              <ChordRenderer text={chordsText || "Brak tekstu."} />
             )}
           </div>
-        </div>
 
-        <div className="max-w-3xl mx-auto p-10 border-8 border-black rounded-[50px] bg-[#FFF8E7] relative shadow-[15px_15px_0px_#32CD32] animate-fade-in">
-          <div className="absolute -top-10 -right-6 transform rotate-12">
-            <HippieFlower color="#FF69B4" className="w-20 h-20" />
-          </div>
-          <h3 className="text-[15px] font-black uppercase tracking-[0.5em] mb-8 text-black/50">Pro tipy dla Nany</h3>
-          <div className="space-y-6">
-            {loading.insight ? (
-              <div className="space-y-4 animate-pulse"><div className="h-4 bg-black/5 rounded-full w-full"></div></div>
-            ) : (
-              insightLines.map((line, idx) => (
-                <div key={idx} className="flex gap-4 items-start">
-                  <span className="text-2xl font-black text-[#FF1493]">✦</span>
-                  <p className="text-lg md:text-xl font-black leading-relaxed text-black/80 tracking-tight">{line}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="max-w-xs mx-auto flex flex-col gap-4 animate-fade-in pb-24">
-          {tabsLink && (
-            <a href={tabsLink} target="_blank" rel="noopener noreferrer" className="pop-button w-full bg-[#32CD32] text-white px-6 py-4 rounded-full font-black text-lg uppercase tracking-widest text-center shadow-[6px_6px_0px_#000]">
-              🎸 Taby
-            </a>
-          )}
-          {sourceLink && (
-            <a href={sourceLink} target="_blank" rel="noopener noreferrer" className="pop-button w-full bg-[#FFD700] text-black px-6 py-4 rounded-full font-black text-lg uppercase tracking-widest text-center shadow-[6px_6px_0px_#000]">
-              🔗 Inne źródło
-            </a>
-          )}
         </div>
       </div>
     </div>
   );
 };
 
-export default SongDetail;
+// Simple URL check
+const isUrl = (string: string) => {
+  if (!string) return false;
+  try {
+    new URL(string);
+    return true;
+  } catch (_) {
+    return false;
+  }
+};
+
+const ChordRenderer: React.FC<{ text: string }> = ({ text }) => {
+  const lines = text.split('\n');
+
+  return (
+    <div className="chords-font space-y-3 select-none text-[13px] md:text-[15px] overflow-x-auto pb-4">
+      {lines.map((line, lineIdx) => {
+        // [Header] detection
+        const headerMatch = line.trim().match(/^\[(.*?)\]$/);
+        if (headerMatch && !line.includes(' ')) {
+          // Probably a section header like [Verse] or [Chorus] if it's the only thing on the line
+          // But be careful not to catch [Am]
+          // usually headers have letters, often Verse 1 etc.
+          // Let's rely on standard length heuristic or keywords
+          // Or just simply: if it matches [Text] and Text is NOT a chord...
+          // Too complex for now, simplistic heuristic:
+          if (line.length > 5 && !/^[A-G]/.test(headerMatch[1])) {
+            return (
+              <div key={lineIdx} className="font-black text-lg mt-6 mb-2 border-l-4 border-[#FF0080] pl-2 text-[#FF0080]">
+                {line.replace(/[\[\]]/g, '')}
+              </div>
+            );
+          }
+        }
+
+        // Detect Tablature line (contains |--- or similar)
+        const isTab = /\|-+\|/.test(line) || /e\|/.test(line) || /B\|/.test(line) || /-+\d+-+/.test(line);
+
+        if (isTab) {
+          // Render tab lines in strict monospace, preserving all spaces
+          return (
+            <div key={lineIdx} className="font-mono whitespace-pre text-gray-800 leading-none tracking-tighter">
+              {line}
+            </div>
+          );
+        }
+
+        const hasChords = /\[.*?\]/.test(line);
+        if (!hasChords) {
+          if (line.trim() === '') return <div key={lineIdx} className="h-3"></div>;
+          return <div key={lineIdx} className="text-black/80 whitespace-pre leading-tight">{line}</div>;
+        }
+
+        const parts = line.split(/(\[.*?\])/);
+        return (
+          <div key={lineIdx} className="flex flex-wrap items-baseline leading-loose">
+            {parts.map((part, partIdx) => {
+              if (part.startsWith('[') && part.endsWith(']')) {
+                const chord = part.slice(1, -1);
+                return (
+                  <span key={partIdx} className="text-[#FF0080] font-black mx-1 cursor-pointer hover:scale-110 inline-block transition-transform">
+                    {chord}
+                  </span>
+                );
+              }
+              return <span key={partIdx}>{part}</span>;
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
