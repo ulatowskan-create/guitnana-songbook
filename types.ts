@@ -6,6 +6,7 @@ export interface Song {
   content: string; // Chords/Tabs
   youtubeUrl: string;
   embedUrl: string; // New field for specific embed links
+  manualChords?: string; // New: Manual text + chords from column F
   rawIndex: number;
 }
 

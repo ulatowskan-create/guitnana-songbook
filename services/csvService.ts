@@ -8,10 +8,10 @@ export const fetchSongs = async (): Promise<Song[]> => {
   try {
     const response = await fetch(CSV_URL);
     if (!response.ok) throw new Error('Failed to fetch sheet data');
-    
+
     const text = await response.text();
     const rows = parseCSV(text);
-    
+
     // Mapping: [0: Zespół, 1: Tytuł, 2: Link YT, 3: Taby/Chords, 4: Embed Script/Link]
     return rows.slice(1).map((row, index) => ({
       id: `${index}-${row[1]}`,
@@ -19,7 +19,8 @@ export const fetchSongs = async (): Promise<Song[]> => {
       title: row[1] || 'Bez tytułu',
       youtubeUrl: row[2] || '',
       content: row[3] || '',
-      embedUrl: row[4] || '', 
+      embedUrl: row[4] || '',
+      manualChords: row[5] || '', // New column "Tekst+chords"
       rawIndex: index
     })).filter(song => song.title !== 'Bez tytułu');
   } catch (error) {

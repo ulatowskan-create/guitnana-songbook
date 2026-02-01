@@ -49,17 +49,26 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
       });
 
     // 2. Get Chords/Lyrics logic
+
+    // PRIORITY 0: Explicit Manual Column (Column F "Tekst+chords")
+    if (song.manualChords && song.manualChords.trim().length > 0) {
+      console.log("Using explicit manual chords from column F");
+      setChordsText(song.manualChords);
+      setLoading(prev => ({ ...prev, chords: false }));
+      return;
+    }
+
     const isContentUrl = isUrl(song.content);
 
-    // MANUAL ENTRY MODE: If content is provided and NOT a URL, treat as raw tabs
+    // PRIORITY 1: Manual content in old column (Column D not URL)
     if (song.content && !isContentUrl) {
-      console.log("Manual content detected (not a URL), using direct text.");
+      console.log("Manual content detected in Col D, using direct text.");
       setChordsText(song.content);
       setLoading(prev => ({ ...prev, chords: false }));
       return;
     }
 
-    // AUTOMATED FETCH MODE: Try Songsterr -> UG -> AI
+    // PRIORITY 2: AUTOMATED FETCH MODE (Songsterr -> UG -> AI)
     const sourceUrl = isContentUrl ? song.content.trim() : '';
 
     getChordsAndLyrics(song.band, song.title, sourceUrl)
@@ -90,7 +99,7 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
             <h3 className="text-xl font-bold bg-white inline-block px-2 py-1 transform -rotate-2 border-2 border-black">{song.band}</h3>
 
             {/* Manual Mode Indicator */}
-            {song.content && !isUrl(song.content) && (
+            {(song.manualChords || (song.content && !isUrl(song.content))) && (
               <div className="mt-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
                 • Tryb Manualny (Tekst z Arkusza)
               </div>
@@ -186,12 +195,8 @@ const ChordRenderer: React.FC<{ text: string }> = ({ text }) => {
         // [Header] detection
         const headerMatch = line.trim().match(/^\[(.*?)\]$/);
         if (headerMatch && !line.includes(' ')) {
-          // Probably a section header like [Verse] or [Chorus] if it's the only thing on the line
-          // But be careful not to catch [Am]
-          // usually headers have letters, often Verse 1 etc.
-          // Let's rely on standard length heuristic or keywords
-          // Or just simply: if it matches [Text] and Text is NOT a chord...
-          // Too complex for now, simplistic heuristic:
+          // Probably a section header like [Verse] or [Chorus]
+          // Heuristic: if it's longer than a typical chord (like [Add9]) and contains words
           if (line.length > 5 && !/^[A-G]/.test(headerMatch[1])) {
             return (
               <div key={lineIdx} className="font-black text-lg mt-6 mb-2 border-l-4 border-[#FF0080] pl-2 text-[#FF0080]">
@@ -201,11 +206,11 @@ const ChordRenderer: React.FC<{ text: string }> = ({ text }) => {
           }
         }
 
-        // Detect Tablature line (contains |--- or similar)
+        // Detect Tablature line
         const isTab = /\|-+\|/.test(line) || /e\|/.test(line) || /B\|/.test(line) || /-+\d+-+/.test(line);
 
         if (isTab) {
-          // Render tab lines in strict monospace, preserving all spaces
+          // Render tab lines in strict monospace
           return (
             <div key={lineIdx} className="font-mono whitespace-pre text-gray-800 leading-none tracking-tighter">
               {line}
@@ -221,7 +226,7 @@ const ChordRenderer: React.FC<{ text: string }> = ({ text }) => {
 
         const parts = line.split(/(\[.*?\])/);
         return (
-          <div key={lineIdx} className="flex flex-wrap items-baseline leading-loose">
+          <div key={lineIdx} className="flex flex-wrap items-baseline leading-loose text-[12px] md:text-[14px]">
             {parts.map((part, partIdx) => {
               if (part.startsWith('[') && part.endsWith(']')) {
                 const chord = part.slice(1, -1);
