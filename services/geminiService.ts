@@ -16,7 +16,7 @@ export const getSongInsight = async (band: string, title: string, content: strin
     if (!ai) return "Skonfiguruj klucz API Gemini, aby otrzymać wskazówki.";
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: `Jesteś ekspertem muzycznym. Podaj 3 bardzo krótkie, praktyczne wskazówki dotyczące grania piosenki "${title}" wykonawcy "${band}". 
       Skup się na rytmie, biciu lub trudności akordów.
       ZASADY:
@@ -33,6 +33,7 @@ export const getSongInsight = async (band: string, title: string, content: strin
     return response.text;
   } catch (error) {
     console.error("Gemini Insight Error:", error);
+    // Return a friendly offline message instead of crashing
     return "Nie udało się pobrać wskazówek.\nSpróbuj ponownie później.\nZagraj to po swojemu!";
   }
 };
@@ -123,14 +124,13 @@ export const getChordsAndLyrics = async (band: string, title: string, sourceUrl:
   }
 
   // STRATEGY 3: AI Generation (Fallback)
-  // STRATEGY 3: AI Generation (Fallback)
   console.log("Falling back to AI generation");
   try {
     const ai = getAiClient();
     if (!ai) return null;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: `Jesteś profesjonalnym transkrybentem muzycznym. Twoim zadaniem jest podanie tekstu piosenki "${title}" wykonawcy "${band}" wraz z akordami.
       Użyj linku jako źródła jeśli to możliwe: ${sourceUrl}
       
