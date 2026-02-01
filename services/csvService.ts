@@ -6,13 +6,14 @@ const CSV_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/t
 
 export const fetchSongs = async (): Promise<Song[]> => {
   try {
-    const response = await fetch(CSV_URL);
+    // Add cache buster to force fresh data from Google Sheets
+    const response = await fetch(`${CSV_URL}&_t=${Date.now()}`);
     if (!response.ok) throw new Error('Failed to fetch sheet data');
 
     const text = await response.text();
     const rows = parseCSV(text);
 
-    // Mapping: [0: Zespół, 1: Tytuł, 2: Link YT, 3: Taby/Chords, 4: Embed Script/Link]
+    // Mapping: [0: Zespół, 1: Tytuł, 2: Link YT, 3: Taby/Chords, 4: Embed Script/Link, 5: Manual Chords (F), 6: Backup (G)]
     return rows.slice(1).map((row, index) => ({
       id: `${index}-${row[1]}`,
       band: row[0] || 'Nieznany Zespół',
@@ -20,7 +21,8 @@ export const fetchSongs = async (): Promise<Song[]> => {
       youtubeUrl: row[2] || '',
       content: row[3] || '',
       embedUrl: row[4] || '',
-      manualChords: row[5] || '', // New column "Tekst+chords"
+      // Try Column F (5), if empty and user made a mistake, try G (6) just in case
+      manualChords: (row[5] || row[6] || '').trim(),
       rawIndex: index
     })).filter(song => song.title !== 'Bez tytułu');
   } catch (error) {
@@ -73,9 +75,9 @@ function parseCSV(text: string): string[][] {
     result.push(row);
   }
 
-  // Normalize row length to ensure we can access index 5
-  // Find max length (expected at least 6 columns for A-F)
-  const maxCols = 6;
+  // Normalize row length to ensure we can access index 5 or 6
+  // Find max length (expected at least 7 columns for A-G)
+  const maxCols = 7;
   return result.map(r => {
     while (r.length < maxCols) {
       r.push('');
