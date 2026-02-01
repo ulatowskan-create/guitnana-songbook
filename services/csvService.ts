@@ -73,7 +73,15 @@ function parseCSV(text: string): string[][] {
     result.push(row);
   }
 
-  return result;
+  // Normalize row length to ensure we can access index 5
+  // Find max length (expected at least 6 columns for A-F)
+  const maxCols = 6;
+  return result.map(r => {
+    while (r.length < maxCols) {
+      r.push('');
+    }
+    return r;
+  });
 }
 
 /**
