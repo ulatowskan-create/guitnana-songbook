@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Song, AppState } from '../types';
 import { getSongInsight, getChordsAndLyrics } from '../services/geminiService';
+import { extractYoutubeId } from '../services/csvService';
 
 interface SongDetailProps {
   song: Song;
@@ -18,12 +19,8 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
   const DEBUG_VERSION = "DEPLOY-FIX-V2";
   const hasManual = !!(song.manualChords && song.manualChords.trim().length > 0);
 
-  // Extract YouTube ID
-  let youtubeId = null;
-  if (song.youtubeUrl) {
-    const match = song.youtubeUrl.match(/(?:youtu\.be\/|youtube\.com\/.*v=)([^&]+)/);
-    youtubeId = match ? match[1] : null;
-  }
+  // Extract YouTube ID using robust helper
+  const youtubeId = extractYoutubeId(song.youtubeUrl);
 
   // Auto-scroll logic
   useEffect(() => {
@@ -40,9 +37,6 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
   }, [isAutoScroll]);
 
   useEffect(() => {
-    console.log(`[${DEBUG_VERSION}] Loading Song:`, song.title);
-    console.log("Manual Chords Present:", hasManual, "Length:", song.manualChords?.length);
-
     // Reset state
     setInsight(null);
     setChordsText(null);
@@ -58,9 +52,9 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
     // 2. Get Chords/Lyrics logic
 
     // PRIORITY 0: Explicit Manual Column (Column F "Tekst+chords")
-    if (hasManual) {
+    if (song.manualChords && song.manualChords.trim().length > 0) {
       console.log("Using explicit manual chords from column F");
-      setChordsText(song.manualChords!);
+      setChordsText(song.manualChords);
       setLoading(prev => ({ ...prev, chords: false }));
       return;
     }
@@ -174,15 +168,6 @@ export const SongDetail: React.FC<SongDetailProps> = ({ song, onBack }) => {
             ) : (
               <ChordRenderer text={chordsText || "Brak tekstu."} />
             )}
-          </div>
-
-          {/* DEBUG FOOTER - Helps diagnose deployment status */}
-          <div className="text-center text-[10px] text-gray-400 mt-8 pb-4 font-mono">
-            System Version: <span className="font-bold text-black">{DEBUG_VERSION}</span><br />
-            Manual Data Found: <span className={hasManual ? "text-green-600 font-bold" : "text-red-500 font-bold"}>
-              {hasManual ? "YES" : "NO"}
-            </span>
-            {song.manualChords && ` (${song.manualChords.length} chars)`}
           </div>
 
         </div>
