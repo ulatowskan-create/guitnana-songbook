@@ -1,0 +1,7 @@
+{
+  "name": "Guitnana Songbook",
+  "description": "A professional digital songbook for musicians, featuring chords, tabs, and integrated YouTube playback, powered by live Google Sheets data.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
