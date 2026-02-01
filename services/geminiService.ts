@@ -1,10 +1,20 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAiClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.error("Gemini API Key is missing! Check VITE_GEMINI_API_KEY or GEMINI_API_KEY.");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export const getSongInsight = async (band: string, title: string, content: string) => {
   try {
+    const ai = getAiClient();
+    if (!ai) return "Skonfiguruj klucz API Gemini, aby otrzymać wskazówki.";
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Jesteś ekspertem muzycznym. Podaj 3 bardzo krótkie, praktyczne wskazówki dotyczące grania piosenki "${title}" wykonawcy "${band}". 
@@ -22,7 +32,7 @@ export const getSongInsight = async (band: string, title: string, content: strin
     });
     return response.text;
   } catch (error) {
-    console.error("Gemini Error:", error);
+    console.error("Gemini Insight Error:", error);
     return "Nie udało się pobrać wskazówek.\nSpróbuj ponownie później.\nZagraj to po swojemu!";
   }
 };
@@ -113,8 +123,12 @@ export const getChordsAndLyrics = async (band: string, title: string, sourceUrl:
   }
 
   // STRATEGY 3: AI Generation (Fallback)
+  // STRATEGY 3: AI Generation (Fallback)
   console.log("Falling back to AI generation");
   try {
+    const ai = getAiClient();
+    if (!ai) return null;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Jesteś profesjonalnym transkrybentem muzycznym. Twoim zadaniem jest podanie tekstu piosenki "${title}" wykonawcy "${band}" wraz z akordami.
